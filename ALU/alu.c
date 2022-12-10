@@ -65,10 +65,11 @@ ssize_t alu_read(struct file *pfile, char __user *buffer, size_t length, loff_t 
 {
 	int ret;
 	char buff[BUFF_SIZE];
-	char buff_res[4];
+	char temp_buff[BUFF_SIZE];
 	int len;
 	int temp_res;
 	int i;
+	int j;
 
 	if (endRead){
 		endRead = 0;
@@ -92,7 +93,6 @@ ssize_t alu_read(struct file *pfile, char __user *buffer, size_t length, loff_t 
 	{
 		flag_BLOKIRAJ_UPIS = 0;
 		// prebacujem result u string
-		len = scnprintf(buff_res, BUFF_SIZE, "%d", result);
 		
 		if(flag_bin || flag_hex)
 		{
@@ -100,37 +100,43 @@ ssize_t alu_read(struct file *pfile, char __user *buffer, size_t length, loff_t 
 			{
 				temp_res = result;
 				i = 0;
-				
-				while(temp_res)
+
+				while(temp_res & 0x00ff)
 				{
 					if(temp_res % 2 == 0)
 					{
-						buff[i++] = '0';
+						temp_buff[i++] = '0';
 					}
 					else
 					{
-						buff[i++] = '1';
+						temp_buff[i++] = '1';
 					}
 					
 					temp_res = temp_res / 2;
 				}
 				
 				buff[i] = '\0';
-				// len = kstrtoint(buff_res, 2, &temp_res);
+				temp_buff[i] = '\0';
+				
+
+				for(j = i; j > 0; j--) {
+					buff[i-j] = temp_buff[j-1];	
+				}
+
+				len = i;
 				flag_bin = 0;
 			}
 
 			if(flag_hex)
 			{
-				len = kstrtoint(buff_res, 16, &temp_res);
 				flag_hex = 0;
-				len = scnprintf(buff, BUFF_SIZE, "%d %d", temp_res, carry);
+				len = scnprintf(buff, BUFF_SIZE, "%x %d", result, carry);
 			}
 		}
 		else
 		{
-			len = kstrtoint(buff_res, 10, &temp_res);
-			len = scnprintf(buff, BUFF_SIZE, "%d %d", temp_res, carry);
+			len = scnprintf(buff, BUFF_SIZE, "%d %d", result, carry);
+			printk(KERN_DEBUG "len=%d\n", len);
 		}
 		
 		
@@ -167,12 +173,11 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 	
 	if(buff[4] == '=')	// upis u registar
 	{
-		printk(KERN_DEBUG "Prepoznao upis\n");
-		//ret = kstrtoint(buff[5],10,&cifra);
+		// printk(KERN_DEBUG "Prepoznao upis\n");
 		
 		ret = sscanf(buff, "reg%c=%d", &oznaka, &cifra);
 		
-		printk(KERN_DEBUG "Ret je vratio %d\n", ret);
+		// printk(KERN_DEBUG "Ret je vratio %d\n", ret);
 			
 		if(ret == 2){
 			if(cifra < 0 || cifra > 255) 
@@ -185,49 +190,49 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 				{
 					case 'A':
 						regA = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regA\n", cifra);
 					break;
 					
 					
 					case 'B':
 						regB = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regB\n", cifra);
 					break;
 					
 					
 					case 'C':
 						regC = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regC\n", cifra);
 					break;
 					
 					
 					case 'D':
 						regD = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regD\n", cifra);
 					break;
 					
 					
 					case 'a':
 						regA = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regA\n", cifra);
 					break;
 					
 					
 					case 'b':
 						regB = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regB\n", cifra);
 					break;
 					
 					
 					case 'c':
 						regC = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regC\n", cifra);
 					break;
 					
 					
 					case 'd':
 						regD = cifra;
-						printk(KERN_WARNING "Uspjesno upisan broj %d u reg%c\n", cifra, buff[3]);
+						printk(KERN_WARNING "Uspjesno upisan broj %d u regD\n", cifra);
 					break;
 					
 					default:
@@ -371,7 +376,7 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 							if(result > 255)
 							{
 								carry = 1;
-								result = result - 255; 
+								result = result - 256; 
 							}
 							else
 							{
@@ -386,7 +391,7 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 							if(result < 0)
 							{
 								carry = 1;
-								result = result + 255; 
+								result = result + 256; 
 							}
 							else
 							{
@@ -403,7 +408,7 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 								carry = 1;
 								while(result > 255)
 								{
-									result = result - 255; 
+									result = result - 256; 
 								}
 							}
 							else
