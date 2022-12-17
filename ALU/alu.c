@@ -22,6 +22,8 @@ static struct device *my_device;
 static struct cdev *my_cdev;
 
 struct semaphore sem;
+// DECLARE_WAIT_QUEUE_HEAD(readQ);
+DECLARE_WAIT_QUEUE_HEAD(writeQ);
 
 
 int regA = 256, regB = 256, regC = 256, regD = 256;
@@ -87,6 +89,7 @@ ssize_t alu_read(struct file *pfile, char __user *buffer, size_t length, loff_t 
 	{
 		endRead = 0;
 		printk(KERN_INFO "Nema rezultata za prikazati!\n");
+		
 		return 0;
 	}
 	else
@@ -136,7 +139,7 @@ ssize_t alu_read(struct file *pfile, char __user *buffer, size_t length, loff_t 
 		else
 		{
 			len = scnprintf(buff, BUFF_SIZE, "%d %d", result, carry);
-			printk(KERN_DEBUG "len=%d\n", len);
+			// printk(KERN_DEBUG "len=%d\n", len);
 		}
 		
 		
@@ -146,8 +149,9 @@ ssize_t alu_read(struct file *pfile, char __user *buffer, size_t length, loff_t 
 		
 		endRead = 1;
 		
+		wake_up_interruptible(&writeQ);
 	}
-	
+
 	// VRACAM SEMAFOR
 	up(&sem);
 	
@@ -172,12 +176,8 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 	
 	
 	if(buff[4] == '=')	// upis u registar
-	{
-		// printk(KERN_DEBUG "Prepoznao upis\n");
-		
+	{		
 		ret = sscanf(buff, "reg%c=%d", &oznaka, &cifra);
-		
-		// printk(KERN_DEBUG "Ret je vratio %d\n", ret);
 			
 		if(ret == 2){
 			if(cifra < 0 || cifra > 255) 
@@ -258,10 +258,22 @@ ssize_t alu_write(struct file *pfile, const char __user *buffer, size_t length, 
 			printk(KERN_DEBUG "Ispravan format!\n");
 			printk(KERN_DEBUG "Operacija je %c\n", buff[5]);
 			
+			
+			while(flag_BLOKIRAJ_UPIS)
+			{
+				up(&sem);
+				if(wait_event_interruptible(writeQ, !flag_BLOKIRAJ_UPIS))
+					return -ERESTARTSYS;
+				if(down_interruptible(&sem))
+					return -ERESTARTSYS;
+			}
+			
+			
 			if(!flag_BLOKIRAJ_UPIS)
 			{
 				printk(KERN_INFO "Dozvoljen upis!\n");
 				flag_BLOKIRAJ_UPIS = 1;
+				
 				// skeniranje prvog operanda sa indeksa 3
 				switch(buff[3])
 				{
